@@ -23,7 +23,7 @@ The Discord Gemini Bot is a powerful AI-driven bot that leverages the capabiliti
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/discord-gemini-bot.git
+   git clone https:/https://github.com/QuotesEveryDay/Discord-Gemini-Bot.git
    cd discord-gemini-bot
    ```
 
