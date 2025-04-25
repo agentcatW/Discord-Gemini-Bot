@@ -1,4 +1,5 @@
 require('dotenv').config();
+const express = require('express');
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
@@ -15,8 +16,8 @@ const client = new Client({
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
 
-// Store conversation history
-const conversationHistory = new Map();
+// Load allowed user IDs from environment
+const allowedUserIds = process.env.ALLOWED_USER_IDS ? process.env.ALLOWED_USER_IDS.split(',') : [];
 
 // Define slash commands
 const commands = [
@@ -57,8 +58,18 @@ client.on('interactionCreate', async interaction => {
   if (!interaction.isCommand()) return;
 
   const { commandName } = interaction;
+  const userId = interaction.user.id;
 
   if (commandName === 'e') {
+    // Check if the user is allowed to use the command
+    if (!allowedUserIds.includes(userId)) {
+      await interaction.reply({
+        content: 'If you wish to use this bot contact @agent.cat on discord and he might allow you to use this bot or if you want to personally run a bot like this go to [GitHub Repository](https://github.com/QuotesEveryDay/Discord-Gemini-Bot/tree/main).',
+        ephemeral: true
+      });
+      return;
+    }
+
     await interaction.deferReply(); // Show "thinking..." state
 
     try {
@@ -72,16 +83,6 @@ client.on('interactionCreate', async interaction => {
       const result = await model.generateContent(modifiedQuestion);
       const response = result.response.text();
 
-      // Store the conversation
-      const messageId = (await interaction.fetchReply()).id;
-      conversationHistory.set(messageId, {
-        messages: [
-          { role: "user", content: modifiedQuestion },
-          { role: "assistant", content: response }
-        ],
-        originalQuestion: question
-      });
-
       // Discord has a 2000 character limit for messages
       if (response.length <= 2000) {
         await interaction.editReply(response);
@@ -91,15 +92,7 @@ client.on('interactionCreate', async interaction => {
         await interaction.editReply(chunks[0]);
 
         for (let i = 1; i < chunks.length; i++) {
-          const followUpMsg = await interaction.followUp(chunks[i]);
-
-          // Add follow-up message to conversation history
-          conversationHistory.set(followUpMsg.id, {
-            messages: conversationHistory.get(messageId).messages,
-            originalQuestion: question,
-            isFollowUp: true,
-            parentId: messageId
-          });
+          await interaction.followUp(chunks[i]);
         }
       }
     } catch (error) {
@@ -108,106 +101,6 @@ client.on('interactionCreate', async interaction => {
     }
   } else if (commandName === 'help') {
     await interaction.reply('Here is the only command you can use: /e to send a message to the bot.');
-  }
-});
-
-// Handle message replies
-client.on('messageCreate', async message => {
-  // Ignore messages from bots (including itself)
-  if (message.author.bot) return;
-  
-  // Check if the message is a reply to a message
-  if (message.reference && message.reference.messageId) {
-    try {
-      // Get the message being replied to
-      const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
-      
-      // Check if the replied message is from our bot
-      if (repliedMessage.author.id === client.user.id) {
-        // Send a notification that the bot is generating a response
-        const processingMessage = await message.reply("I'm thinking about your message... Please wait a moment.");
-        
-        await message.channel.sendTyping();
-        
-        // Get conversation history for this message
-        let history = conversationHistory.get(repliedMessage.id);
-        
-        // If this is a follow-up message, get the parent conversation
-        if (history && history.isFollowUp && history.parentId) {
-          history = conversationHistory.get(history.parentId);
-        }
-        
-        // If no history found, create a new one
-        if (!history) {
-          history = {
-            messages: [
-              { role: "assistant", content: repliedMessage.content }
-            ]
-          };
-        }
-        
-        // Add the new user message to history
-        history.messages.push({ role: "user", content: message.content });
-        
-        try {
-          // Generate response from Gemini with conversation history
-          const result = await model.generateContent({
-            contents: history.messages.map(msg => ({
-              role: msg.role,
-              parts: [{ text: msg.content }]
-            }))
-          });
-          
-          const response = result.response.text();
-          
-          // Add the assistant's response to history
-          history.messages.push({ role: "assistant", content: response });
-          
-          // Delete the processing message
-          await processingMessage.delete().catch(err => console.error('Error deleting processing message:', err));
-          
-          // Send the response
-          if (response.length <= 2000) {
-            const sentMessage = await message.reply(response);
-            
-            // Store updated conversation history
-            conversationHistory.set(sentMessage.id, {
-              messages: history.messages,
-              originalQuestion: history.originalQuestion || repliedMessage.content
-            });
-          } else {
-            // Split long responses
-            const chunks = splitMessage(response);
-            const sentMessage = await message.reply(chunks[0]);
-            
-            // Store updated conversation history
-            conversationHistory.set(sentMessage.id, {
-              messages: history.messages,
-              originalQuestion: history.originalQuestion || repliedMessage.content
-            });
-            
-            for (let i = 1; i < chunks.length; i++) {
-              const followUpMsg = await message.channel.send(chunks[i]);
-              
-              // Add follow-up message to conversation history
-              conversationHistory.set(followUpMsg.id, {
-                messages: history.messages,
-                originalQuestion: history.originalQuestion || repliedMessage.content,
-                isFollowUp: true,
-                parentId: sentMessage.id
-              });
-            }
-          }
-        } catch (error) {
-          console.error('Error generating response:', error);
-          // Update the processing message instead of deleting it
-          await processingMessage.edit('Sorry, I encountered an error while processing your request.');
-        }
-      }
-    } catch (error) {
-      console.error('Error handling reply:', error);
-      message.reply('Sorry, I encountered an error while processing your request.');
-    }
   }
 });
 
@@ -236,3 +129,15 @@ function splitMessage(message, maxLength = 2000) {
 
 // Start the bot
 client.login(process.env.DISCORD_TOKEN);
+
+// Initialize Express server
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('Discord Gemini Bot is running!');
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is listening on port ${PORT}`);
+});
