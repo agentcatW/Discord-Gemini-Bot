@@ -1,5 +1,4 @@
 require('dotenv').config();
-const express = require('express');
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
@@ -129,15 +128,3 @@ function splitMessage(message, maxLength = 2000) {
 
 // Start the bot
 client.login(process.env.DISCORD_TOKEN);
-
-// Initialize Express server
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.get('/', (req, res) => {
-  res.send('Discord Gemini Bot is running!');
-});
-
-app.listen(PORT, () => {
-  console.log(`Server is listening on port ${PORT}`);
-});
