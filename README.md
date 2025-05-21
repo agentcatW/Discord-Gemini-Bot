@@ -39,6 +39,9 @@ The Discord Gemini Bot is a powerful AI-driven bot that leverages the capabiliti
 
     # Gemini API Key - https://aistudio.google.com/u/4/apikey
     GEMINI_API_KEY=Gemini_Api
+
+    # Allowed UsersIds (ex. 12746187264, 1246781276418726)
+    ALLOWED_USER_IDS=UserId
     ```
 
 ## Run the bot
