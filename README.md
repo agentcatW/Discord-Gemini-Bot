@@ -8,8 +8,6 @@ The Discord Gemini Bot is a powerful AI-driven bot that leverages the capabiliti
 
 - **AI-Powered Responses**: Utilizes the Gemini 2.5 Flash model for generating responses.
 - **Slash Commands**: Supports slash commands for easy interaction.
-- **Conversation History**: Maintains a history of interactions for context-aware responses.
-- **Web Interface**: Includes a simple web interface for monitoring the bot's status.
 
 ## Setup
 
